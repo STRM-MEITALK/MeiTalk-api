@@ -1,0 +1,490 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.StreamMapper">
+    <select id="isExistStreamId"
+            resultType="boolean">
+        SELECT COUNT(*) FROM vod WHERE stream_id=#{streamId}
+    </select>
+
+    <select id="isExistInternalStream" parameterType="String" resultType="Long">
+        SELECT v.id
+        FROM vod v
+        WHERE v.vod_flag='X' AND v.transmitted_type='I' AND v.delete_time IS NULL
+            AND channel_id=(SELECT c.id FROM my_channel c WHERE channel_arn=#{channelArn})
+        ORDER BY create_time DESC LIMIT 1
+    </select>
+
+    <select id="findChannelIdByChannelArn" parameterType="String" resultType="Long">
+        SELECT c.id
+        FROM my_channel c
+        WHERE channel_arn=#{channelArn} AND delete_time IS NULL
+    </select>
+
+    <select id="findChannelIdByVodId" parameterType="Long" resultType="Long">
+        SELECT v.channel_id AS channelId
+        FROM vod v
+        WHERE v.id = #{vodId} AND delete_time IS NULL
+    </select>
+
+    <select id="findChannelArnByChannelId" parameterType="Long" resultType="String">
+        SELECT c.channel_arn AS channelArn
+        FROM my_channel c
+        WHERE c.id = #{channelId} AND delete_time IS NULL
+    </select>
+
+    <select id="findChannelByUserNo" parameterType="Long"
+            resultType="com.meitalk.api.model.stream.ChannelResponse">
+        SELECT
+               c.id AS channelId,
+               c.user_no AS userNo,
+               u.user_name AS channelName,
+               u.user_picture AS channelImage,
+               c.channel_arn AS channelArn,
+               c.playback_url AS playbackUrl,
+               c.stream_key AS streamKey,
+               c.stream_arn AS streamArn,
+               c.create_time AS createTime,
+               c.update_time AS updateTime
+        FROM my_channel c
+            INNER JOIN user_profile u ON c.user_no=u.id AND c.delete_time IS NULL
+        WHERE user_no=#{userNo}
+
+    </select>
+
+    <insert id="saveVodInfo"
+            parameterType="com.meitalk.api.model.stream.StreamDto$SaveInfo">
+        INSERT INTO
+            vod(channel_id, user_no, transmitted_type, vod_url, vod_title, vod_detail, vod_category, create_time, vod_flag)
+        VALUES
+            (#{channelId}, #{userNo}, #{transmittedType}, #{playbackUrl}, #{vodTitle}, #{vodDetail}, #{vodCategory.num}, now(), 'X')
+    </insert>
+
+    <select id="getStreamList"
+            parameterType="com.meitalk.api.model.stream.StreamRequest$List"
+            resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT STRAIGHT_JOIN
+                v.id AS vodId,
+                v.channel_id AS channelId,
+                u.user_name AS name,
+                v.vod_view_cnt AS viewCount,
+                IF(v.vod_flag='Y', true, false) AS isLive,
+                <if test="userNo != null">
+                    IF(
+                        awv.id, true, false
+                    ) AS isSave,
+                </if>
+                IF(v.vod_flag='Y',
+                    TIME_FORMAT(SEC_TO_TIME(TIMESTAMPDIFF(SECOND, v.start_time, now())), IF(TIMESTAMPDIFF(SECOND, v.start_time, now()) > 3599, '%H:%i:%s', '%i:%s')),
+                    v.start_time) AS streamTime,
+                TIME_FORMAT(SEC_TO_TIME(v.vod_len/1000), IF (v.vod_len > 3599999, '%H:%i:%s', '%i:%s')) AS streamLen,
+                IFNULL(
+                    (SELECT SUM(like_no) FROM feelings WHERE like_type = 'V' AND type_id = v.id) , 0
+                ) AS likeCount,
+                v.vod_title AS title,
+                v.vod_url AS playbackUrl,
+                c.channel_arn AS channelArn,
+                u.user_picture AS profile,
+                v.thumbnail AS thumbnail,
+                v.vod_preffix AS prefix,
+                c.play_token AS playToken,
+                c.chat_key AS chatKey
+        FROM vod v
+            INNER JOIN my_channel c ON v.channel_id = c.id AND c.delete_time IS NULL
+            INNER JOIN user_profile u ON v.user_no=u.id
+            <if test="userNo != null">
+                LEFT OUTER JOIN after_watch_video awv ON v.id=awv.vod_id AND awv.user_no=#{userNo}
+            </if>
+        WHERE v.delete_time IS NULL AND ((v.vod_flag='Y') OR (v.vod_flag='N' AND v.display_flag='Y'))
+        <if test="vodId != null">
+            AND v.id != #{vodId}
+        </if>
+        <choose>
+            <when test='"A".equals(flag)'>
+                ORDER BY v.start_time DESC
+            </when>
+            <when test='"Y".equals(flag)'>
+                AND vod_flag=#{flag} ORDER BY v.start_time DESC
+            </when>
+            <otherwise>
+                AND vod_flag='N'
+                <if test='"N".equals(flag)'>
+                    ORDER BY v.start_time DESC
+                </if>
+                <if test='"W".equals(flag)'>
+                    AND (TIMESTAMPDIFF(WEEK, v.start_time, now()) = 0) ORDER BY v.vod_view_cnt DESC
+                </if>
+                <if test='"M".equals(flag)'>
+                    AND (TIMESTAMPDIFF(MONTH, v.start_time, now()) = 0) ORDER BY v.vod_view_cnt DESC
+                </if>
+                <if test='"H".equals(flag)'>
+                    ORDER BY v.vod_view_cnt DESC
+                </if>
+            </otherwise>
+        </choose>
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="startStream" parameterType="String" resultType="com.meitalk.api.model.stream.aws.EventBridgeDto$StartStream">
+        SELECT v.id AS vodId, v.user_no, v.transmitted_type, c.chat_key, v.start_time
+        FROM vod v
+            INNER JOIN my_channel c ON v.channel_id = c.id AND c.delete_time IS NULL
+        WHERE v.stream_id=#{streamId} AND v.delete_time IS NULL
+    </select>
+
+    <update id="endRecordingEvent" parameterType="com.meitalk.api.model.stream.aws.EventBridgeDto$Request">
+        UPDATE vod
+        SET end_time=#{time}, thumbnail=#{thumbnail}, vod_url=#{vodUrl}, stream_id=#{detail.stream_id}, vod_preffix=#{detail.recording_s3_key_prefix}, vod_len=#{detail.recording_duration_ms}, vod_flag='N', update_time=NOW()
+            <if test="detail.recording_duration_ms == null or detail.recording_duration_ms.equals('') or detail.recording_duration_ms == 0">
+                , delete_time=now()
+            </if>
+        WHERE stream_id=#{detail.stream_id} AND vod_flag='Y' AND delete_time IS NULL
+    </update>
+
+    <insert id="createStartRecordingEvent" parameterType="com.meitalk.api.model.stream.aws.EventBridgeDto$StartRecording">
+        INSERT INTO
+            vod(channel_id, vod_preffix, vod_url, user_no, stream_id, transmitted_type, vod_title, vod_detail, vod_flag, start_time, create_time)
+        VALUES
+            (#{channelId}, #{prefix}, #{playbackUrl}, #{userNo}, #{streamId}, #{transmittedType}, #{vodTitle}, #{vodDetail}, 'X', #{startTime}, now())
+    </insert>
+
+    <update id="updateStartRecordingEvent" parameterType="com.meitalk.api.model.stream.aws.EventBridgeDto$Request">
+        UPDATE vod
+        SET start_time=#{time}, stream_id=#{detail.stream_id}, vod_preffix=#{detail.recording_s3_key_prefix}
+        WHERE id=#{vodId} AND delete_time IS NULL
+    </update>
+
+    <update id="startStreamEvent" parameterType="String">
+        UPDATE vod SET vod_flag='Y' WHERE stream_id=#{streamId} AND delete_time IS NULL AND end_time IS NULL AND vod_flag='X'
+    </update>
+
+    <update id="updateStream" parameterType="com.meitalk.api.model.stream.StreamRequest$Update">
+        UPDATE vod
+        SET update_time=now(), vod_title=#{vodTitle}, vod_detail=#{vodDetail}, vod_category=#{vodCategory.num}, display_flag=IF(#{public}, 'Y', 'N')
+        WHERE id=#{vodId} and user_no=#{userNo} AND delete_time IS NULL
+    </update>
+
+    <select id="getTotalStreams" resultType="Integer">
+        SELECT STRAIGHT_JOIN COUNT(v.id)
+        FROM vod v
+        INNER JOIN my_channel c ON v.channel_id = c.id AND c.delete_time IS NULL
+        INNER JOIN user_profile u ON v.user_no=u.id
+        WHERE v.delete_time IS NULL AND ((v.vod_flag='Y') OR (v.vod_flag='N' AND v.display_flag='Y'))
+        <if test="vodId != null">
+            AND v.id != #{vodId}
+        </if>
+        <choose>
+            <when test='"A".equals(flag)'>
+            </when>
+            <when test='"Y".equals(flag)'>
+                AND vod_flag='Y'
+            </when>
+            <otherwise>
+                AND vod_flag='N'
+            </otherwise>
+        </choose>
+    </select>
+
+    <select id="lookupStream"
+            parameterType="Long"
+            resultType="com.meitalk.api.model.stream.StreamResponse$Lookup">
+        SELECT v.id AS vodId, v.channel_id AS channelId, v.user_no AS userNo, v.stream_id AS streamId,
+               v.vod_title AS vodTitle, v.vod_detail AS vodDetail, v.vod_category AS vodCategory,
+               c.playback_url AS playbackUrl, c.chat_key AS chatKey, v.transmitted_type AS transmittedType, v.start_time AS startTime
+        FROM vod v
+        INNER JOIN my_channel c ON c.id=v.channel_id AND v.delete_time IS NULL
+        WHERE v.user_no = #{userNo}  AND v.vod_flag = 'Y' LIMIT 1
+    </select>
+
+    <select id="getStream"
+            resultType="com.meitalk.api.model.stream.StreamResponse$Detail">
+        SELECT
+               c.id AS channelId,
+               v.id AS vodId,
+               v.vod_title AS title,
+               v.vod_detail AS detail,
+               v.vod_category AS category,
+               u.id AS owner,
+               u.user_name AS name,
+               <if test="userNo !=null">
+                   IF(
+                        (SELECT like_no FROM feelings WHERE like_type='V' AND type_id=v.id AND user_no=#{userNo})=1, true, false
+                   ) AS isLike,
+                   IF(
+                        (SELECT COUNT(*) FROM after_watch_video a WHERE a.user_no=#{userNo} AND a.vod_id=#{vodId})=1, true, false
+                   ) AS isSave,
+               </if>
+               IF(v.display_flag='Y', true, false) AS isPublic,
+               IFNULL(
+                    (SELECT SUM(like_no) FROM feelings WHERE like_type = 'V' AND type_id = v.id) , 0
+               ) AS likeCount,
+               v.start_time AS streamTime,
+               v.vod_url AS playbackUrl,
+               c.chat_key AS chatKey,
+               u.user_picture AS profile,
+               v.vod_view_cnt AS viewCount,
+               c.play_token AS playToken,
+               v.thumbnail As thumbnail,
+               v.vod_preffix AS vodPrefix,
+               IF(v.vod_flag='Y',
+                    TIME_FORMAT(SEC_TO_TIME(TIMESTAMPDIFF(SECOND, v.start_time, now())), IF(TIMESTAMPDIFF(SECOND, v.start_time, now()) > 3599, '%H:%i:%s', '%i:%s')),
+               v.start_time) AS streamLength,
+               v.subtitle_key AS subtitleKey
+        FROM vod v
+            INNER JOIN my_channel c ON v.user_no=c.user_no AND c.delete_time IS NULL
+            INNER JOIN user_profile u ON v.user_no=u.id
+        WHERE v.id=#{vodId} AND v.vod_flag=#{type} AND v.delete_time IS NULL
+        <if test='"N".equals(type)'>
+            AND v.display_flag = 'Y'
+        </if>
+    </select>
+
+    <update id="deleteInternalFlagX" parameterType="Long">
+        UPDATE vod v SET v.delete_time=now() WHERE v.user_no=#{userNo} AND v.vod_flag='X' AND v.transmitted_type='I' AND v.delete_time IS NULL
+    </update>
+
+    <update id="deleteExternalFlagX" parameterType="String">
+        UPDATE vod v SET v.delete_time=now() WHERE v.channel_id=(SELECT c.id FROM my_channel c WHERE c.channel_arn=#{channelArn}) AND v.vod_flag='X' AND v.transmitted_type='E' AND v.delete_time IS NULL
+    </update>
+
+    <update id="addViewCount" parameterType="Long">
+        UPDATE vod v SET v.vod_view_cnt=v.vod_view_cnt+1 WHERE v.id=#{vodId} AND v.vod_flag='N' AND v.delete_time IS NULL;
+    </update>
+
+    <select id="getViewCount" parameterType="Long" resultType="Integer">
+        SELECT v.vod_view_cnt FROM vod v WHERE v.id=#{vodId} AND v.delete_time IS NULL
+    </select>
+
+    <update id="deleteVod" parameterType="Long">
+        UPDATE vod v SET v.delete_time=now() WHERE v.id=#{vodId} AND v.vod_flag='N' AND v.delete_time IS NULL
+    </update>
+
+    <select id="getVodOwner" resultType="Long">
+        SELECT v.user_no FROM vod v WHERE v.id=#{vodId} AND v.vod_flag='N' AND v.delete_time IS NULL
+    </select>
+
+    <update id="displayToggle" parameterType="Long">
+        UPDATE vod v SET v.display_flag=IF(v.display_flag='Y', 'N', 'Y') WHERE v.id=#{vodId} AND delete_time IS NULL
+    </update>
+
+    <update id="changeChatKey">
+        UPDATE my_channel c SET c.chat_key=#{newChatKey} WHERE c.id=#{channelId}
+    </update>
+
+    <insert id="insertAfterWatchVideo">
+        INSERT INTO
+            after_watch_video(user_no, vod_id, create_time)
+        VALUES
+            (#{userNo}, #{vodId}, now())
+    </insert>
+
+    <delete id="deleteAfterWatchVideo">
+        DELETE FROM after_watch_video WHERE user_no=#{userNo} AND vod_id=#{vodId}
+    </delete>
+
+    <select id="isPresentAfterWatchVideo" resultType="boolean">
+        SELECT COUNT(*) FROM after_watch_video WHERE user_no=#{userNo} AND vod_id=#{vodId}
+    </select>
+
+    <select id="getWatchedVideoList"
+            parameterType="com.meitalk.api.model.stream.StreamRequest$WatchedVideoList"
+            resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT
+            v.id AS vodId,
+            v.channel_id AS channelId,
+            u.user_name AS name,
+            v.vod_view_cnt AS viewCount,
+            IF(v.vod_flag='Y', true, false) AS isLive,
+            IF(v.vod_flag='Y',
+            TIME_FORMAT(SEC_TO_TIME(TIMESTAMPDIFF(SECOND, v.start_time, now())), IF(TIMESTAMPDIFF(SECOND, v.start_time, now()) > 3599, '%H:%i:%s', '%i:%s')),
+            v.start_time) AS streamTime,
+            TIME_FORMAT(SEC_TO_TIME(v.vod_len/1000), IF (v.vod_len > 3599999, '%H:%i:%s', '%i:%s')) AS streamLen,
+            IFNULL(
+            (SELECT SUM(like_no) FROM feelings WHERE like_type = 'V' AND type_id = v.id) , 0
+            ) AS likeCount,
+            v.vod_title AS title,
+            u.user_picture AS profile,
+            c.channel_arn AS channelArn,
+            IF(
+                v.vod_flag='Y' OR (v.display_flag='Y' AND v.delete_time IS NULL),
+                v.vod_url,
+                ''
+            ) AS playbackUrl,
+            IF(
+                v.vod_flag='Y' OR (v.display_flag='Y' AND v.delete_time IS NULL),
+                v.thumbnail,
+                ''
+            ) AS thumbnail,
+            IF(
+                v.vod_flag='Y' OR (v.display_flag='Y' AND v.delete_time IS NULL),
+                v.vod_preffix,
+                ''
+            ) AS prefix,
+            IF(
+                v.vod_flag='Y' OR (v.display_flag='Y' AND v.delete_time IS NULL),
+                c.play_token,
+                ''
+            ) AS playToken,
+            IF(
+                v.vod_flag='Y' OR (v.display_flag='Y' AND v.delete_time IS NULL),
+                c.chat_key,
+                ''
+            ) AS chatKey,
+            (SELECT COUNT(*) FROM comment cm INNER JOIN comment_reply cr ON cr.comment_id = cm.id AND cm.vod_id=v.id) + (SELECT COUNT(*) FROM comment WHERE vod_id=v.id) AS commentCnt,
+            v.display_flag AS displayFlag
+        FROM
+            <if test='type.equals("after")'>
+                (SELECT * FROM after_watch_video WHERE user_no=#{userNo}) t1
+            </if>
+            <if test='type.equals("liked")'>
+                (SELECT type_id AS vod_id FROM feelings WHERE user_no=#{userNo} AND like_type='V' AND like_no=1) t1
+            </if>
+            INNER JOIN vod v ON v.id=t1.vod_id AND v.delete_time IS NULL AND v.vod_flag !='X'
+            INNER JOIN my_channel c ON v.channel_id = c.id AND c.delete_time IS NULL
+            INNER JOIN user_profile u ON v.user_no=u.id
+        <if test='search != null and !search.equals("")'>
+            WHERE v.vod_title LIKE CONCAT('%', #{search}, '%')
+        </if>
+        <if test="orderType != null">
+            <choose>
+                <when test='"N".equals(orderType.type)'>
+                    ORDER BY v.start_time DESC
+                </when>
+                <when test='"E".equals(orderType.type)'>
+                    ORDER BY v.start_time
+                </when>
+                <when test='"L".equals(orderType.type)'>
+                    ORDER BY likeCount DESC
+                </when>
+                <when test='"V".equals(orderType.type)'>
+                    ORDER BY viewCount DESC
+                </when>
+                <when test='"C".equals(orderType.type)'>
+                    ORDER BY commentCnt DESC
+                </when>
+            </choose>
+        </if>
+        <if test="orderType == null">
+            ORDER BY v.start_time DESC
+        </if>
+        LIMIT #{offset}, #{pageSize}
+    </select>
+
+    <select id="getTotalWatchedStreams" resultType="Integer">
+        SELECT COUNT(*)
+        FROM
+            <if test='type.equals("after")'>
+                (SELECT * FROM after_watch_video WHERE user_no=#{userNo}) t1
+            </if>
+            <if test='type.equals("liked")'>
+                (SELECT type_id AS vod_id FROM feelings WHERE user_no=#{userNo} AND like_type='V' AND like_no=1) t1
+            </if>
+            INNER JOIN vod v ON v.id=t1.vod_id AND v.delete_time IS NULL
+        <if test='search != null and !search.equals("")'>
+            WHERE v.vod_title LIKE CONCAT('%', #{search}, '%')
+        </if>
+    </select>
+
+    <update id="saveSubtitleKey">
+        UPDATE vod SET subtitle_key=#{subtitleKey} WHERE stream_id=#{streamId}
+    </update>
+
+    <update id="updateDisplayFlag">
+        UPDATE vod SET display_flag='Y' WHERE id=#{vodId}
+    </update>
+
+    <select id="getChannelTop1Stream"
+            resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT
+            v.id AS vodId,
+            v.channel_id AS channelId,
+            u.user_name AS name,
+            v.vod_view_cnt AS viewCount,
+            false AS isLive,
+            IF(v.display_flag='Y', v.update_time, v.end_time) AS streamTime,
+            TIME_FORMAT(SEC_TO_TIME(v.vod_len/1000), IF (v.vod_len > 3599999, '%H:%i:%s', '%i:%s')) AS streamLen,
+            IFNULL(
+                    (SELECT SUM(like_no) FROM feelings WHERE like_type = 'V' AND type_id = v.id) , 0
+                ) AS likeCount,
+            v.vod_title AS title,
+            v.vod_detail AS detail,
+            v.vod_url AS playbackUrl,
+            c.channel_arn AS channelArn,
+            u.user_picture AS profile,
+            v.thumbnail AS thumbnail,
+            v.vod_preffix AS prefix,
+            c.play_token AS playToken,
+            c.chat_key AS chatKey,
+            v.display_flag AS displayFlag,
+            IF(IFNULL(#{userNo}, 0)=u.id, true, false) AS isOwner,
+            (SELECT COUNT(*) FROM comment cm INNER JOIN comment_reply cr ON cr.comment_id = cm.id AND cm.vod_id=v.id) + (SELECT COUNT(*) FROM comment WHERE vod_id=v.id) AS commentCount
+        FROM
+             (SELECT * FROM vod WHERE channel_id=#{channelId} AND delete_time IS NULL AND display_flag='Y' AND vod_flag='N' ORDER BY vod_view_cnt DESC LIMIT 1) v
+        INNER JOIN my_channel c ON v.channel_id=c.id AND c.delete_time IS NULL
+        INNER JOIN user_profile u ON v.user_no=u.id
+    </select>
+
+    <select id="getChannelStreamList"
+            resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT
+                v.id AS vodId,
+                v.channel_id AS channelId,
+                u.user_name AS name,
+                v.vod_view_cnt AS viewCount,
+                false AS isLive,
+                IF(v.display_flag='Y', v.update_time, v.end_time) AS streamTime,
+                    TIME_FORMAT(SEC_TO_TIME(v.vod_len/1000), IF (v.vod_len > 3599999, '%H:%i:%s', '%i:%s')) AS streamLen,
+                IFNULL(
+                    (SELECT SUM(like_no) FROM feelings WHERE like_type = 'V' AND type_id = v.id) , 0
+                ) AS likeCount,
+                v.vod_title AS title,
+                v.vod_url AS playbackUrl,
+                c.channel_arn AS channelArn,
+                u.user_picture AS profile,
+                v.thumbnail AS thumbnail,
+                v.vod_preffix AS prefix,
+                c.play_token AS playToken,
+                c.chat_key AS chatKey,
+                v.display_flag AS displayFlag,
+                IF(IFNULL(#{request.userNo}, 0)=u.id, true, false) AS isOwner,
+                (SELECT COUNT(*) FROM comment cm INNER JOIN comment_reply cr ON cr.comment_id = cm.id AND cm.vod_id=v.id) + (SELECT COUNT(*) FROM comment WHERE vod_id=v.id) AS commentCount
+        FROM vod v
+            INNER JOIN my_channel c ON v.channel_id=c.id AND c.delete_time IS NULL
+            INNER JOIN user_profile u ON v.user_no=u.id
+        WHERE v.delete_time IS NULL AND v.vod_flag='N' AND v.display_flag='Y' AND v.channel_id=#{channelId}
+        <if test='request.search != null and !request.search.equals("")'>
+            AND v.vod_title LIKE CONCAT('%', #{request.search}, '%')
+        </if>
+        <if test="request.orderType != null">
+            <choose>
+                <when test='"N".equals(request.orderType.type)'>
+                    ORDER BY v.start_time DESC
+                </when>
+                <when test='"E".equals(request.orderType.type)'>
+                    ORDER BY v.start_time
+                </when>
+                <when test='"L".equals(request.orderType.type)'>
+                    ORDER BY likeCount DESC
+                </when>
+                <when test='"V".equals(request.orderType.type)'>
+                    ORDER BY viewCount DESC
+                </when>
+                <when test='"C".equals(request.orderType.type)'>
+                    ORDER BY commentCount DESC
+                </when>
+            </choose>
+        </if>
+        <if test="request.orderType == null">
+            ORDER BY v.start_time DESC
+        </if>
+        LIMIT #{request.offset}, #{request.pageSize}
+    </select>
+
+    <select id="getChannelTotalStreams" resultType="int">
+        SELECT COUNT(*) FROM vod v
+        WHERE v.delete_time IS NULL AND v.vod_flag='N' AND v.display_flag='Y' AND v.channel_id=#{channelId}
+        <if test='search != null and !search.equals("")'>
+            AND v.vod_title LIKE CONCAT('%', #{search}, '%')
+        </if>
+    </select>
+</mapper>
+

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.VodMapper">
+
+    <select id="getTestList" resultType="String">
+        SELECT user_name FROM user_profile
+    </select>
+
+    <select id="getChannelIdByChatKey" parameterType="String"
+            resultType="Long">
+        SELECT id
+        FROM my_channel
+        WHERE chat_key = #{chatKey}
+    </select>
+
+    <update id="updateVod">
+        UPDATE vod
+        SET vod_title=#{title}, vod_detail=#{description}, vod_category=#{category.num}
+        WHERE vod_flag = 'Y' AND channel_id = #{channelId}
+    </update>
+
+    <select id="getThumbnailUrl" resultType="com.meitalk.api.model.vod.VodDto$GetThumbnailUrl">
+        SELECT vod_preffix AS vodPrefix, thumbnail AS thumbnailPath
+        FROM vod
+        WHERE user_no = #{userNo} AND id = #{vodId}
+    </select>
+
+    <select id="saveThumbnailPath">
+        UPDATE vod
+        SET thumbnail = #{thumbnailUrl}, update_time = now()
+        WHERE id = #{vodId}
+    </select>
+
+</mapper>
+

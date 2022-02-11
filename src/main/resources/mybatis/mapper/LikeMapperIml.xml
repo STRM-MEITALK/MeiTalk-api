@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.LikeMapper">
+    <select id="countLikeExists" resultType="Integer">
+        SELECT COUNT(id) FROM feelings WHERE like_type = #{type}
+        AND user_no = #{userNo}
+        AND type_id = #{typeId};
+    </select>
+
+    <insert id="insertLike">
+        INSERT INTO feelings (user_no,type_id ,like_no,dislike_no,create_time, update_time,like_type)
+        VALUES (#{userNo},#{typeId},1,0,NOW(),NOW(),#{type});
+    </insert>
+
+    <update id="updateLikeToggle">
+        UPDATE feelings SET like_no = IFNULL(#{isLike}, ABS((like_no-1))) ,update_time=NOW()
+        WHERE like_type = #{type}
+        AND user_no = #{userNo}
+          AND type_id = #{typeId};
+    </update>
+
+    <select id="selectLikeCountByTypeIdAndType" resultType="Long">
+        SELECT
+            IFNULL((SUM(like_no)),0)
+        FROM
+            feelings
+        WHERE
+            like_type = #{type} AND type_id = #{typeId};
+    </select>
+    <select id="selectLikeByTypeIdAndType" resultType="Integer">
+        SELECT
+            like_no
+        FROM
+            feelings
+        WHERE
+            like_type = #{type} AND type_id = #{typeId} AND user_no = #{userNo};
+    </select>
+
+    <select id="selectCommentIdByReplyId"
+            parameterType="java.lang.Long"
+            resultType="java.lang.Long">
+        SELECT comment_id
+        FROM comment_reply
+        WHERE id=#{typeId}
+    </select>
+
+
+</mapper>
+

@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.GlobalMapper">
+
+    <select id="selectAllCountryCode"
+            resultType="com.meitalk.api.model.global.ResCountryCode">
+        SELECT country_cd AS countryCd,
+        country_name AS countryName,
+        country_phone AS countryPhone
+        FROM global_country
+        ORDER BY country_name
+    </select>
+
+    <insert id="insertAuthEmailVerification"
+            parameterType="com.meitalk.api.model.global.AuthEmailVerificationDto">
+        INSERT INTO email_verification(user_no, user_key, create_time)
+        VALUES (#{userId}, #{userKey}, NOW())
+    </insert>
+
+    <update id="updateUserEmailVerificationByUserMail"
+            parameterType="java.lang.String">
+        UPDATE user_profile
+        SET email_verification = #{verifyFlag}
+        WHERE mail_id = #{userMail}
+    </update>
+
+    <update id="updateEmailVerificationTable"
+            parameterType="com.meitalk.api.model.global.UpdateEmailVerificationTableDto">
+        UPDATE email_verification
+        SET verification = #{verification}
+        WHERE user_no = #{userNo}
+        ORDER BY id DESC LIMIT 1
+    </update>
+
+    <select id="selectUserByUserMail"
+            parameterType="java.lang.String"
+            resultType="com.meitalk.api.model.user.UserProfile">
+        SELECT id AS userNo,
+        mail_id AS mailId,
+        user_name AS userName,
+        user_pw AS userPw,
+        country_phone AS countryPhone,
+        phone_num AS phoneNum,
+        ip_addr AS ipAddr,
+        create_time AS userCreateTime,
+        update_time AS updateTime,
+        role,
+        block,
+        platform,
+        privacy_agree AS privacyAgree,
+        user_picture AS userPicture,
+        oauth2_key AS oauth2Key,
+        email_verification AS emailVerification
+        FROM user_profile
+        WHERE mail_id=#{userMail}
+    </select>
+
+    <select id="selectUserByUserMailKey"
+            parameterType="java.lang.String"
+            resultMap="selectUserByUserMailKeyMap">
+        SELECT profile.id AS userNo,
+    mail_id AS mailId,
+    user_name AS userName,
+    user_pw AS userPw,
+    country_phone AS countryPhone,
+    phone_num AS phoneNum,
+    ip_addr AS ipAddr,
+    profile.create_time AS userCreateTime,
+    update_time AS updateTime,
+    role,
+    block,
+    platform,
+    privacy_agree AS privacyAgree,
+    user_picture AS userPicture,
+    oauth2_key AS oauth2Key,
+    email_verification AS emailVerification,
+        verification.id AS verificationId,
+        verification.user_no AS verificationUserId,
+       verification.user_key AS userKey,
+       verification.verification AS verification,
+       verification.create_time AS verificationCreateTime
+        FROM user_profile AS profile
+        INNER JOIN email_verification AS verification
+        ON profile.id = verification.user_no
+        WHERE verification.user_key=#{userKey}
+    </select>
+
+    <resultMap id="selectUserByUserMailKeyMap"
+               type="com.meitalk.api.model.user.UserProfileWithEmailVerification">
+        <association property="userEmailVerification"
+                     javaType="com.meitalk.api.model.user.UserEmailVerification">
+            <id property="verificationId" column="verificationId"/>
+            <result property="verificationUserNo" column="verificationUserId"/>
+            <result property="userKey" column="userKey"/>
+            <result property="verification" column="verification"/>
+            <result property="verificationCreateTime" column="verificationCreateTime"/>
+        </association>
+        <association property="userProfile"
+                     javaType="com.meitalk.api.model.user.UserProfile">
+            <id property="userNo" column="userNo"/>
+            <result property="mailId" column="mailId"/>
+            <result property="userName" column="userName"/>
+            <result property="userPw" column="userPw"/>
+            <result property="countryPhone" column="countryPhone"/>
+            <result property="phoneNum" column="phoneNum"/>
+            <result property="ipAddr" column="ipAddr"/>
+            <result property="userCreateTime" column="userCreateTime"/>
+            <result property="updateTime" column="updateTime"/>
+            <result property="role" column="role"/>
+            <result property="block" column="block"/>
+            <result property="platform" column="platform"/>
+            <result property="privacyAgree" column="privacyAgree"/>
+            <result property="userPicture" column="userPicture"/>
+            <result property="oauth2Key" column="oauth2Key"/>
+            <result property="emailVerification" column="emailVerification"/>
+        </association>
+    </resultMap>
+
+</mapper>
+

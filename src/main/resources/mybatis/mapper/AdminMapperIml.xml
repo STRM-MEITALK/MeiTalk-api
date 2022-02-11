@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.AdminMapper">
+    <select id="findChannelArnByVodId" parameterType="Long" resultType="String">
+        SELECT c.channel_arn FROM my_channel c WHERE c.id = (SELECT v.channel_id FROM vod v WHERE v.id=#{vodId})
+    </select>
+</mapper>
+

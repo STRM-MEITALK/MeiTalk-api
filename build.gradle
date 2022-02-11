@@ -1,0 +1,90 @@
+plugins {
+    id 'org.springframework.boot' version '2.6.0'
+    id 'io.spring.dependency-management' version '1.0.11.RELEASE'
+    id 'java'
+}
+
+group = 'com.meitalk'
+version = '0.0.1-SNAPSHOT'
+sourceCompatibility = '1.8'
+
+configurations {
+    compileOnly {
+        extendsFrom annotationProcessor
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+task print(){
+    doLast {
+        println "Jenkint test"
+    }
+}
+
+ext.profile = (!project.hasProperty('profile') || !profile) ? 'local' : profile
+sourceSets {
+    main {
+        resources {
+            srcDirs "src/main/resources", "src/main/resources-${profile}"
+        }
+    }
+}
+
+dependencies {
+    // https://mvnrepository.com/artifact/software.amazon.awssdk/transcribestreaming
+    implementation group: 'software.amazon.awssdk', name: 'transcribestreaming', version: '2.17.102'
+
+    // cloud front
+    implementation 'com.amazonaws:aws-java-sdk-cloudfront:1.12.133'
+    implementation 'net.java.dev.jets3t:jets3t:0.9.4'
+
+    // https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-s3
+    implementation group: 'com.amazonaws', name: 'aws-java-sdk-s3', version: '1.12.131'
+
+    // https://mvnrepository.com/artifact/com.amazonaws/aws-java-sdk-ivs
+    implementation group: 'com.amazonaws', name: 'aws-java-sdk-ivs', version: '1.12.120'
+
+    implementation group: 'org.bouncycastle', name: 'bcprov-jdk15on', version: '1.70'
+
+    implementation 'org.springframework.boot:spring-boot-starter-data-jdbc'
+    implementation 'org.springframework.boot:spring-boot-starter-web'
+    implementation 'org.mybatis.spring.boot:mybatis-spring-boot-starter:2.2.0'
+    implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+
+    //AOP logger
+    implementation 'org.springframework.boot:spring-boot-starter-aop'
+    implementation 'org.springframework.boot:spring-boot-configuration-processor:2.5.5'
+    implementation 'com.google.guava:guava:29.0-jre'
+    implementation 'org.apache.commons:commons-lang3:3.11'
+    implementation 'org.apache.poi:poi:3.17'
+    implementation 'com.googlecode.json-simple:json-simple:1.1.1'
+    implementation 'org.apache.httpcomponents:httpcore:4.4.14'
+
+
+    //jwt
+    compile group: 'io.jsonwebtoken', name: 'jjwt-api', version: '0.11.2'
+    runtime group: 'io.jsonwebtoken', name: 'jjwt-impl', version: '0.11.2'
+    runtime group: 'io.jsonwebtoken', name: 'jjwt-jackson', version: '0.11.2'
+    compile 'org.bouncycastle:bcprov-jdk15on:1.59'
+    implementation 'org.projectlombok:lombok:1.18.20'
+
+    compileOnly 'org.projectlombok:lombok'
+    runtimeOnly 'mysql:mysql-connector-java'
+    annotationProcessor 'org.projectlombok:lombok'
+    testImplementation 'org.springframework.boot:spring-boot-starter-test'
+
+    //mail
+    compile group: 'com.sun.mail', name: 'javax.mail', version: '1.6.2'
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-thymeleaf', version: '2.6.1'
+
+    implementation 'org.apache.logging.log4j:log4j-api:2.15.0'
+    implementation 'org.apache.logging.log4j:log4j-to-slf4j:2.15.0'
+
+}
+
+test {
+    useJUnitPlatform()
+}

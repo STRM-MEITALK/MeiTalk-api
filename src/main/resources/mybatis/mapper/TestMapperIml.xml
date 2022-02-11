@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.TestMapper">
+
+    <select id="getSimpleStreams" resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT * FROM vod;
+    </select>
+
+    <select id="getSimpleStreamsLimit" resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT * FROM vod LIMIT 0, 24
+    </select>
+
+    <select id="getSimpleStreamById" resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT * FROM vod WHERE id=#{vodId}
+    </select>
+
+    <select id="getSimpleStreamByUserNo" resultType="com.meitalk.api.model.stream.StreamResponse">
+        SELECT * FROM vod WHERE user_no=#{userNo}
+    </select>
+
+    <select id="getTestList" resultType="String">
+        SELECT user_name FROM user_profile
+    </select>
+
+    <update id="update">
+        UPDATE vod
+        SET thumbnail=#{thumbnail}
+        WHERE id=#{vodId}
+    </update>
+</mapper>
+

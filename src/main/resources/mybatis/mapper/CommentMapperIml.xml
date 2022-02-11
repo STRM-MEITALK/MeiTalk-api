@@ -1,0 +1,205 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.CommentMapper">
+    <select id="getCommentsByVideoId" resultType="com.meitalk.api.model.comment.CommentResponse">
+        SELECT
+        mc.id AS channelId,
+        c.id,
+        c.user_no,
+        up.user_name,
+        up.user_picture,
+        c.vod_id,
+        IF(c.delete_time IS NULL, c.comment_content, '') AS commentContent,
+        c.create_time,
+        c.update_time,
+        (SELECT IFNULL(SUM(like_no), 0) FROM feelings WHERE type_id = c.id AND like_type = 'C') AS like_count,
+        <if test="userNo!=null">
+            IF((SELECT IFNULL(SUM(like_no), 0) FROM feelings WHERE type_id = c.id AND like_type = 'C' AND
+            feelings.user_no = #{userNo}) > 0 , 'true','false') AS likeIs,
+        </if>
+        IF(c.delete_time IS NULL, false, true) AS deleted,
+        IFNULL((SELECT COUNT(id) FROM comment_reply WHERE comment_reply.comment_id = c.id),0) AS replyCount
+        FROM (SELECT * FROM comment WHERE vod_id = #{id}) AS c
+        LEFT OUTER JOIN (SELECT * FROM user_profile) AS up ON c.user_no = up.id
+        LEFT OUTER JOIN my_channel mc ON c.user_no=mc.user_no
+        ORDER BY c.create_time DESC
+        LIMIT #{index} , #{pageSize}
+    </select>
+
+    <select id="getTotalComments" resultType="int">
+        SELECT (SELECT COUNT(*)
+                FROM comment cm
+                         INNER JOIN comment_reply cr ON cr.comment_id = cm.id AND cm.vod_id = #{id}) +
+               (SELECT COUNT(*) FROM comment WHERE vod_id = #{id})
+        FROM dual;
+    </select>
+
+    <select id="getUpdateTime" resultType="String">
+        SELECT update_time FROM
+        <if test='type.equals("C")'>comment</if>
+        <if test='type.equals("R")'>comment_reply</if>
+        <if test='type.equals("CC")'>community_comment</if>
+        <if test='type.equals("CR")'>community_comment_reply</if>
+        WHERE user_no = #{userNo} AND id =#{id}
+    </select>
+
+    <select id="getCountCommentByVideoId" parameterType="Long" resultType="Integer">
+        SELECT IFNULL(count(id), 0)
+        FROM comment
+        WHERE vod_id = #{id}
+    </select>
+
+    <select id="getCommentReplyListByCommentId" resultType="com.meitalk.api.model.comment.CommentResponse$Reply">
+        SELECT
+        mc.id AS channelId,
+        c.id,
+        c.user_no,
+        up.user_name,
+        up.user_picture,
+        IF(c.delete_time IS NULL, c.reply_content, '') AS replyContent,
+        c.create_time,
+        c.update_time,
+        <if test="userNo!=null">
+            IF((SELECT IFNULL(SUM(like_no), 0) FROM feelings WHERE type_id = c.id AND like_type = 'R' AND
+            feelings.user_no =#{userNo}) > 0 , 'true','false') AS likeIs,
+        </if>
+        IF(c.delete_time IS NULL, false, true) AS deleted,
+        (SELECT IFNULL(SUM(like_no), 0) FROM feelings WHERE type_id = c.id AND like_type = 'R') AS like_count
+        FROM (SELECT * FROM comment_reply WHERE comment_id = #{id}) AS c
+        LEFT OUTER JOIN (SELECT * FROM user_profile) AS up ON c.user_no = up.id
+        LEFT OUTER JOIN my_channel mc ON c.user_no=mc.user_no
+        ORDER BY c.create_time DESC
+    </select>
+
+    <insert id="insertComment" parameterType="com.meitalk.api.model.comment.CommentDto$CommonParam"
+            useGeneratedKeys="true" keyProperty="id">
+        INSERT INTO
+        <if test='type.equals("C")'>comment (user_no, vod_id, comment_content</if>
+        <if test='type.equals("R")'>comment_reply (user_no, comment_id, reply_content</if>
+        <if test='type.equals("CC")'>community_comment (user_no, community_id, comment_content</if>
+        <if test='type.equals("CR")'> community_comment_reply (user_no, community_comment_id, reply_content</if>
+        , create_time, update_time)
+        VALUES (#{userNo}, #{contentId}, #{content}, NOW(), NOW())
+    </insert>
+
+    <select id="selectCommentByCommentId"
+            resultType="com.meitalk.api.model.comment.CommentResponse">
+        SELECT mc.id AS channelId,
+               c.id,
+               c.user_no,
+               up.user_name,
+               up.user_picture,
+               c.create_time,
+               c.update_time,
+        <if test='type.equals("C")'>
+               c.vod_id,
+               c.comment_content
+        FROM comment c</if>
+        <if test='type.equals("R")'>
+            c.comment_id    AS contentId,
+            c.reply_content AS commentContent
+        FROM comment_reply c</if>
+        <if test='type.equals("CC")'>
+            c.community_id,
+            c.comment_content
+        FROM community_comment c</if>
+        <if test='type.equals("CR")'>
+            c.community_comment_id AS contentId,
+            c.reply_content        AS commentContent
+        FROM community_comment_reply c</if>
+                 LEFT JOIN user_profile up on c.user_no = up.id
+                 LEFT JOIN my_channel mc on c.user_no = mc.user_no AND mc.delete_time IS NULL
+        WHERE c.id = #{id}
+    </select>
+
+    <select id="countCommentByUserNoAndId" resultType="Integer">
+        SELECT COUNT(id) FROM
+        <if test='type.equals("C")'>comment</if>
+        <if test='type.equals("R")'>comment_reply</if>
+        <if test='type.equals("CC")'>community_comment</if>
+        <if test='type.equals("CR")'>community_comment_reply</if>
+        WHERE user_no = #{userNo} AND id =#{id}
+    </select>
+
+    <select id="getCommentIdByReplyId" resultType="Long">
+        SELECT comment_id
+        FROM comment_reply
+        WHERE id = #{replyId}
+    </select>
+
+    <update id="updateComment">
+        UPDATE
+        <if test='type.equals("C")'>comment SET comment_content = #{content}</if>
+        <if test='type.equals("R")'>comment_reply SET reply_content = #{content}</if>
+        <if test='type.equals("CC")'>community_comment SET comment_content = #{content}</if>
+        <if test='type.equals("CR")'>community_comment_reply SET reply_content = #{content}</if>
+        , update_time = NOW() WHERE id = #{id};
+    </update>
+
+    <update id="deleteComment">
+        UPDATE
+        <if test='type.equals("C")'>comment</if>
+        <if test='type.equals("R")'>comment_reply</if>
+        <if test='type.equals("CC")'>community_comment</if>
+        <if test='type.equals("CR")'>community_comment_reply</if>
+        SET delete_time = NOW() WHERE id = #{id};
+    </update>
+
+    <select id="getCommunityCommentIdByReplyId" resultType="Long">
+        SELECT community_comment_id
+        FROM community_comment_reply
+        WHERE id = #{replyId}
+    </select>
+
+    <select id="getCommunityCommentListByCommunityId" resultType="com.meitalk.api.model.comment.CommentResponse">
+        SELECT
+        mc.id AS channelId,
+        c.id,
+        c.user_no,
+        up.user_name,
+        up.user_picture,
+        c.community_id,
+        IF(c.delete_time IS NULL, c.comment_content, '') AS commentContent,
+        c.create_time,
+        c.update_time,
+        IF(c.delete_time IS NULL, false, true) AS deleted,
+        IFNULL((SELECT COUNT(id) FROM community_comment_reply WHERE community_comment_reply.community_comment_id = c.id),0) AS replyCount
+        FROM (SELECT * FROM community_comment WHERE community_id = #{id}) AS c
+        LEFT OUTER JOIN (SELECT * FROM user_profile) AS up ON c.user_no = up.id
+        LEFT OUTER JOIN my_channel mc ON c.user_no=mc.user_no
+        ORDER BY c.create_time DESC
+        LIMIT #{index} , #{pageSize}
+    </select>
+    <select id="getCommunityCommentReplyListByCommentId" resultType="com.meitalk.api.model.comment.CommentResponse$Reply">
+        SELECT
+        mc.id AS channelId,
+        c.id,
+        c.user_no,
+        up.user_name,
+        up.user_picture,
+        IF(c.delete_time IS NULL, c.reply_content, '') AS replyContent,
+        c.create_time,
+        c.update_time,
+        IF(c.delete_time IS NULL, false, true) AS deleted
+        FROM (SELECT * FROM community_comment_reply WHERE community_comment_id = #{id}) AS c
+        LEFT OUTER JOIN (SELECT * FROM user_profile) AS up ON c.user_no = up.id
+        LEFT OUTER JOIN my_channel mc ON c.user_no=mc.user_no
+        ORDER BY c.create_time DESC
+    </select>
+
+    <select id="getCountCommunityCommentByVideoId" parameterType="Long" resultType="Integer">
+        SELECT IFNULL(count(id), 0)
+        FROM community_comment
+        WHERE community_id = #{id}
+    </select>
+
+    <select id="getTotalCommunityComments" resultType="int">
+        SELECT (SELECT COUNT(*)
+                FROM community_comment cm
+                         INNER JOIN community_comment_reply cr ON cr.community_comment_id = cm.id AND cm.community_id = #{id}) +
+               (SELECT COUNT(*) FROM community_comment WHERE community_id = #{id})
+        FROM dual;
+    </select>
+
+</mapper>
+

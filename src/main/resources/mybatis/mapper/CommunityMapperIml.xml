@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.CommunityMapper">
+
+    <insert id="createCommunityBoard"
+            parameterType="com.meitalk.api.model.community.CommunityDto$CreateCommunityBoard"
+            useGeneratedKeys="true"
+            keyProperty="id">
+        INSERT INTO community (channel_id, contents, create_time, update_time)
+        VALUES (#{channelId}, #{contents}, NOW(), NOW());
+    </insert>
+
+    <select id="findCommunityByChannelId"
+            resultType="com.meitalk.api.model.community.CommunityDto$CommunityList">
+        SELECT id,
+               channel_id                           AS channelId,
+               contents,
+               create_time                          AS createTime,
+               update_time                          AS updateTime,
+               (SELECT COUNT(*)
+                FROM community_comment
+                WHERE community.id = community_comment.community_id)
+                +
+               (SELECT COUNT(*)
+                FROM community_comment_reply
+                WHERE community_comment_id = (SELECT id
+                                      FROM community_comment
+                                      WHERE community.id = community_comment.community_id GROUP BY community.id)) AS commentCount
+        FROM community
+        WHERE channel_id = #{channelId}
+        AND delete_time IS NULL
+        ORDER BY id DESC
+        LIMIT #{pageSize} OFFSET #{index}
+    </select>
+
+    <select id="findCommunityDetailByCommunityId"
+            parameterType="java.lang.Long"
+            resultType="com.meitalk.api.model.community.CommunityResponse$CommunityDetail">
+        SELECT *
+        FROM community
+        WHERE id = #{communityId}
+    </select>
+
+    <update id="updateCommunityByCommunityId">
+        UPDATE community
+        SET contents = #{req.contents},
+            update_time = NOW()
+        WHERE id = #{communityId}
+    </update>
+
+    <update id="deleteCommunityByCommunityId"
+            parameterType="java.lang.Long">
+        UPDATE community
+        SET delete_time = NOW()
+        WHERE id = #{communityId}
+    </update>
+
+    <select id="getTotalCommunity"
+            parameterType="java.lang.Long"
+            resultType="java.lang.Integer">
+        SELECT COUNT(*)
+        FROM community
+        WHERE channel_id = #{channelId}
+        AND delete_time IS NULL
+    </select>
+
+</mapper>
+

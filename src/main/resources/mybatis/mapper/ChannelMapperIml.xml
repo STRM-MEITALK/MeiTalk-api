@@ -1,0 +1,162 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.ChannelMapper">
+
+    <select id="isExistChannel" parameterType="Long" resultType="boolean">
+        SELECT IF(channel_arn IS NULL, false, true) FROM my_channel WHERE user_no=#{userNo} AND delete_time IS NULL
+    </select>
+
+    <select id="saveChannel" parameterType="com.meitalk.api.model.stream.ChannelDto$Save"
+            resultType="Integer">
+        UPDATE my_channel
+        SET channel_arn=#{channelArn}, playback_url=#{playbackUrl}, stream_key=#{streamKey},
+            stream_arn=#{streamArn}, update_time=now(), chat_key=#{chatKey}, play_token=#{playToken}
+        WHERE user_no=#{userNo} AND delete_time IS NULL
+    </select>
+
+    <select id="findChannelByChannelArn" parameterType="String"
+            resultType="com.meitalk.api.model.stream.ChannelResponse">
+        SELECT
+            c.id AS channelId,
+            c.user_no AS userNo,
+            u.user_name AS channelName,
+            u.user_picture AS channelImage,
+            c.channel_arn AS channelArn,
+            c.playback_url AS playbackUrl,
+            c.stream_key AS streamKey,
+            c.stream_arn AS streamArn,
+            c.chat_key AS chatKey,
+            c.create_time AS createTime,
+            c.update_time AS updateTime
+        FROM my_channel c
+                 INNER JOIN user_profile u ON c.user_no=u.id AND c.delete_time IS NULL
+        WHERE channel_arn=#{channelArn}
+    </select>
+
+    <select id="findChannelByChannelId" parameterType="Long"
+            resultType="com.meitalk.api.model.stream.ChannelResponse">
+        SELECT
+            c.id AS channelId,
+            c.user_no AS userNo,
+            c.ch_img AS channelImage,
+            c.channel_arn AS channelArn,
+            c.playback_url AS playbackUrl,
+            c.stream_key AS streamKey,
+            c.stream_arn AS streamArn,
+            c.create_time AS createTime,
+            c.update_time AS updateTime
+        FROM my_channel c WHERE id=#{channelId} AND delete_time IS NULL
+    </select>
+
+    <select id="findUserChannelValue" parameterType="Long"
+            resultType="com.meitalk.api.model.stream.ChannelResponse$Create">
+        SELECT mc.stream_key AS streamValue, mc.playback_url AS playbackUrl, mc.play_token AS playToken
+        FROM my_channel mc
+        WHERE user_no = #{userNO} AND delete_time IS NULL
+    </select>
+
+    <select id="findUserChannelArn" parameterType="Long"
+            resultType="com.meitalk.api.model.stream.ChannelResponse$Arn">
+        SELECT channel_arn AS channelArn
+        FROM my_channel mc
+        WHERE user_no = #{userNO} AND delete_time IS NULL
+    </select>
+
+    <select id="findUserChannel" parameterType="Long"
+            resultType="com.meitalk.api.model.stream.ChannelResponse$FindUser">
+        SELECT id as channelId, playback_url as playbackUrl, channel_arn as channelArn
+        FROM my_channel mc
+        WHERE user_no = #{userNO} AND delete_time IS NULL
+    </select>
+
+    <update id="deleteChannel" parameterType="Long">
+        UPDATE my_channel
+        SET delete_time=now()
+        WHERE id=#{channelId}
+    </update>
+
+    <update id="reissueStreamKey" parameterType="com.meitalk.api.model.stream.ChannelDto$ReissueStreamKey">
+        UPDATE my_channel
+        SET stream_key=#{streamKey}, stream_arn=#{streamArn}, update_time=now()
+        WHERE id=#{channelId} AND delete_time IS NULL
+    </update>
+
+    <update id="deleteStreamKey" parameterType="Long">
+        UPDATE my_channel
+        SET stream_key=null, stream_arn=null, update_time=now()
+        WHERE id=#{channelId} AND delete_time IS NULL
+    </update>
+
+    <update id="updateChannelBannerImage">
+        UPDATE my_channel
+        SET ch_img = #{imageUrl}, update_time=NOW() WHERE id = #{channelId}
+    </update>
+
+    <resultMap id="findChannelDetailByChannelIdMap"
+               type="com.meitalk.api.model.stream.ChannelResponse$ChannelDetail">
+        <id property="channelId" column="channelId"/>
+        <result property="chImg" column="ch_img"/>
+        <result property="description" column="description"/>
+        <result property="views" column="views"/>
+        <association property="userProfile" javaType="com.meitalk.api.model.user.UserProfile">
+            <id property="userNo" column="userNo"/>
+            <result property="mailId" column="mail_id"/>
+            <result property="userName" column="user_name"/>
+            <result property="userPw" column="user_pw"/>
+            <result property="countryPhone" column="country_phone"/>
+            <result property="phoneNum" column="phone_num"/>
+            <result property="ipAddr" column="ip_addr"/>
+            <result property="userCreateTime" column="userCreateTime"/>
+            <result property="updateTime" column="update_time"/>
+            <result property="role" column="role"/>
+            <result property="block" column="block"/>
+            <result property="platform" column="platform"/>
+            <result property="privacyAgree" column="privacy_agree"/>
+            <result property="userPicture" column="user_picture"/>
+            <result property="oauth2Key" column="oauth2_key"/>
+            <result property="emailVerification" column="email_verification"/>
+        </association>
+    </resultMap>
+
+    <select id="findChannelDetailByChannelId"
+            parameterType="java.lang.Long"
+            resultMap="findChannelDetailByChannelIdMap">
+        SELECT channel.id AS channelId,
+       channel.ch_img,
+       channel.description,
+       profile.id AS userNo,
+       profile.mail_id,
+       profile.user_name,
+       profile.user_pw,
+       profile.country_phone,
+       profile.phone_num,
+       profile.ip_addr,
+       profile.create_time AS userCreateTime,
+       profile.update_time,
+       profile.role,
+       profile.block,
+       profile.platform,
+       profile.privacy_agree,
+       profile.user_picture,
+       profile.oauth2_key,
+       profile.email_verification,
+       (SELECT SUM(vod_view_cnt) from vod WHERE channel_id = #{channelId}) AS views
+        FROM my_channel AS channel
+        INNER JOIN user_profile AS profile
+        ON channel.user_no = profile.id
+        WHERE channel.id = #{channelId}
+    </select>
+
+    <update id="updateChannelDetailByChannelId">
+        UPDATE my_channel
+        SET description = #{req.description},
+        update_time = NOW()
+        WHERE id = #{channelId}
+    </update>
+
+    <insert id="insertMyChannel"
+            parameterType="java.lang.Long">
+        INSERT INTO stream_TestDB.my_channel(user_no, create_time)
+        VALUES (#{userNo}, NOW())
+    </insert>
+</mapper>

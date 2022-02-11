@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="com.meitalk.api.mapper.WalletMapper">
+
+    <insert id="insertWalletExternalTransaction">
+        INSERT INTO wallet_external_transaction(
+        coin_type, type, amount, sender, receiver, txid, fee, create_time
+        )
+        VALUES(
+        #{req.coinType}, #{req.type}, #{req.amount}, #{req.sender}, #{req.receiver}, #{req.txid}, #{req.fee}, NOW()
+        )
+    </insert>
+
+    <select id="selectWalletUserInfoByReceiver"
+            resultType="com.meitalk.api.model.wallet.ResultWallet$WalletUserInfo">
+        SELECT *
+        FROM wallet_user_info
+        WHERE ${coinType}=#{receiver}
+    </select>
+
+    <select id="selectWalletUserAmountByUserNoAndCoinType"
+            resultType="java.lang.String">
+        SELECT ${coinType}
+        FROM wallet_user_amount
+        WHERE user_no=#{userNo}
+    </select>
+
+    <update id="updateWalletUserAmount">
+        UPDATE wallet_user_amount
+        SET ${coinType} = #{updateAmount}
+        WHERE user_no = #{userNo}
+    </update>
+
+</mapper>
+
