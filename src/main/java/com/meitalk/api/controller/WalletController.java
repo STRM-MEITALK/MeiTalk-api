@@ -1,6 +1,8 @@
 package com.meitalk.api.controller;
 
+import com.meitalk.api.common.annotation.JwtAuthentication;
 import com.meitalk.api.model.ResponseWithData;
+import com.meitalk.api.model.user.JwtUser;
 import com.meitalk.api.model.wallet.ReqWallet;
 import com.meitalk.api.service.WalletService;
 import lombok.RequiredArgsConstructor;
@@ -17,11 +19,10 @@ public class WalletController {
 
     private final WalletService walletService;
 
-//    @PostMapping("/create")
-//    public ResponseWithData createUserWallet(@JwtAuthentication JwtUser user,
-//                                             @RequestBody ) {
-//
-//    }
+    @PostMapping("/create")
+    public ResponseWithData createUserWallet(@JwtAuthentication JwtUser user) {
+        return walletService.createUserWallet(user);
+    }
 
     @PostMapping("/external/transaction")
     public ResponseWithData walletExternalTransaction(@RequestBody ReqWallet.ExternalTransaction req) {

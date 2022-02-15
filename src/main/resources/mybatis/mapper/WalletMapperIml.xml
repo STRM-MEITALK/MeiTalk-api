@@ -31,5 +31,23 @@
         WHERE user_no = #{userNo}
     </update>
 
+    <insert id="insertWalletUserInfo">
+        INSERT INTO wallet_user_info(
+            user_no, user_email, BTC, ETH, BNB, STRM, ABBC, create_time
+        )
+        VALUES(
+                  #{dto.userNo}, #{dto.userEmail}, #{dto.BTC}, #{dto.ETH}, #{dto.BNB}, #{dto.STRM}, #{dto.ABBC}, NOW()
+              )
+    </insert>
+
+    <insert id="insertWalletUserAmount">
+        INSERT INTO wallet_user_amount(
+            user_no, user_email, BTC, ETH, BNB, STRM, ABBC
+        )
+        VALUES(
+                  #{dto.userNo}, #{dto.userEmail}, #{dto.BTC}, #{dto.ETH}, #{dto.BNB}, #{dto.STRM}, #{dto.ABBC}
+              )
+    </insert>
+
 </mapper>
 

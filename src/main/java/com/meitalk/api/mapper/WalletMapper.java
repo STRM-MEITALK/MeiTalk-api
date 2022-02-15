@@ -1,5 +1,6 @@
 package com.meitalk.api.mapper;
 
+import com.meitalk.api.model.wallet.DtoWallet;
 import com.meitalk.api.model.wallet.ReqWallet;
 import com.meitalk.api.model.wallet.ResultWallet;
 import org.apache.ibatis.annotations.Mapper;
@@ -30,4 +31,11 @@ public interface WalletMapper {
             @Param("updateAmount") String updateAmount
     );
 
+    int insertWalletUserInfo(
+            @Param("dto") DtoWallet.CreateWalletDto dto
+    );
+
+    int insertWalletUserAmount(
+            @Param("dto") DtoWallet.UserAmount dto
+    );
 }

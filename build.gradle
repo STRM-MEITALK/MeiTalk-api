@@ -83,6 +83,11 @@ dependencies {
     implementation 'org.apache.logging.log4j:log4j-api:2.15.0'
     implementation 'org.apache.logging.log4j:log4j-to-slf4j:2.15.0'
 
+
+    // https://mvnrepository.com/artifact/org.springframework/spring-webflux
+    implementation group: 'org.springframework', name: 'spring-webflux'
+    // https://mvnrepository.com/artifact/org.springframework.boot/spring-boot-starter-webflux
+    implementation group: 'org.springframework.boot', name: 'spring-boot-starter-webflux'
 }
 
 test {
